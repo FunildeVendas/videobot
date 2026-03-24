@@ -85,3 +85,8 @@ LOGGING = {
         "xmlschema": {"level": "WARNING", "handlers": ["console"], "propagate": False},
     },
 }
+
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_EMAIL_VERIFICATION = "none"
+ACCOUNT_CONFIRM_EMAIL_ON_GET = True
+ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
