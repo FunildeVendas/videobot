@@ -63,6 +63,7 @@ if os.getenv("DISABLE_SIGNUP") and os.getenv("DISABLE_SIGNUP") != "false":
     ACCOUNT_ADAPTER = "accounts.adapters.NoNewUsersAccountAdapter"
 else:
     ACCOUNT_ADAPTER = "accounts.adapters.StandardAccountAdapter"
+
 ACCOUNT_AUTHENTICATION_METHOD = "email"
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_USERNAME_REQUIRED = False
@@ -123,11 +124,7 @@ WSGI_APPLICATION = "attendee.wsgi.application"
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
-
 AUTH_PASSWORD_VALIDATORS = [
-    # {
-    #    'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    # },
     {
         "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
     },
@@ -139,27 +136,19 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
-
 LANGUAGE_CODE = "en-us"
-
 TIME_ZONE = os.getenv("TIME_ZONE", "UTC")
-
 USE_I18N = True
-
 USE_TZ = True
-
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
-
 STATIC_URL = "static/"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
-
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Redis/Celery Configuration
@@ -168,6 +157,7 @@ if os.getenv("DISABLE_REDIS_SSL"):  # backward compatibility
     redis_params["ssl_cert_reqs"] = "none"
 elif os.getenv("REDIS_SSL_REQUIREMENTS"):
     redis_params["ssl_cert_reqs"] = os.getenv("REDIS_SSL_REQUIREMENTS")
+
 redis_params_query_string = "&".join([f"{key}={value}" for key, value in redis_params.items()])
 
 REDIS_URL_WITH_PARAMS = os.getenv("REDIS_URL") + ("?" + redis_params_query_string if redis_params_query_string else "")
@@ -212,7 +202,6 @@ if os.getenv("IS_A_BOT_POD", "false") == "true" and os.getenv("CONSERVE_BOT_POD_
     CELERY_TASK_IGNORE_RESULT = True
 
 REST_FRAMEWORK = {
-    # YOUR SETTINGS
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_THROTTLE_RATES": {
         "project_post": os.getenv("PROJECT_POST_THROTTLE_RATE", "3000/min"),
@@ -240,7 +229,10 @@ SPECTACULAR_SETTINGS = {
 # Logging formatters - shared across environments
 LOG_FORMATTERS = {
     "plain": {"format": "{levelname} {message}", "style": "{"},
-    "json": {"class": "attendee.logging.ISOJsonFormatter", "format": "%(timestamp)s %(name)s %(levelname)s %(message)s"},
+    "json": {
+        "class": "attendee.logging.ISOJsonFormatter",
+        "format": "%(timestamp)s %(name)s %(levelname)s %(message)s",
+    },
 }
 
 # Set up django storage backend
@@ -251,9 +243,17 @@ AZURE_RECORDING_STORAGE_CONTAINER_NAME = os.getenv("AZURE_RECORDING_STORAGE_CONT
 
 # Audio chunk storage settings
 USE_REMOTE_STORAGE_FOR_AUDIO_CHUNKS = os.getenv("USE_REMOTE_STORAGE_FOR_AUDIO_CHUNKS", "false") == "true"
-FALLBACK_TO_DB_STORAGE_FOR_AUDIO_CHUNKS_IF_REMOTE_STORAGE_FAILS = os.getenv("FALLBACK_TO_DB_STORAGE_FOR_AUDIO_CHUNKS_IF_REMOTE_STORAGE_FAILS", "false") == "true"
+FALLBACK_TO_DB_STORAGE_FOR_AUDIO_CHUNKS_IF_REMOTE_STORAGE_FAILS = os.getenv(
+    "FALLBACK_TO_DB_STORAGE_FOR_AUDIO_CHUNKS_IF_REMOTE_STORAGE_FAILS", "false"
+) == "true"
 AWS_AUDIO_CHUNK_STORAGE_BUCKET_NAME = os.getenv("AWS_AUDIO_CHUNK_STORAGE_BUCKET_NAME") or AWS_RECORDING_STORAGE_BUCKET_NAME
-AZURE_AUDIO_CHUNK_STORAGE_CONTAINER_NAME = os.getenv("AZURE_AUDIO_CHUNK_STORAGE_CONTAINER_NAME") or AZURE_RECORDING_STORAGE_CONTAINER_NAME
+AZURE_AUDIO_CHUNK_STORAGE_CONTAINER_NAME = (
+    os.getenv("AZURE_AUDIO_CHUNK_STORAGE_CONTAINER_NAME") or AZURE_RECORDING_STORAGE_CONTAINER_NAME
+)
+
+AWS_S3_SIGNATURE_VERSION = "s3v4"
+AWS_S3_ADDRESSING_STYLE = os.getenv("AWS_S3_ADDRESSING_STYLE", "path")
+AWS_S3_REGION_NAME = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
 
 if STORAGE_PROTOCOL == "azure":
     DEFAULT_STORAGE_BACKEND = {
@@ -262,7 +262,9 @@ if STORAGE_PROTOCOL == "azure":
             "connection_string": os.getenv("AZURE_CONNECTION_STRING"),
             "account_key": os.getenv("AZURE_ACCOUNT_KEY"),
             "account_name": os.getenv("AZURE_ACCOUNT_NAME"),
-            "expiration_secs": None if os.getenv("AZURE_STORAGE_USE_PERMANENT_LINKS", "false") == "true" else int(os.getenv("AZURE_STORAGE_LINK_EXPIRATION_SECONDS", 1800)),
+            "expiration_secs": None
+            if os.getenv("AZURE_STORAGE_USE_PERMANENT_LINKS", "false") == "true"
+            else int(os.getenv("AZURE_STORAGE_LINK_EXPIRATION_SECONDS", 1800)),
         },
     }
     RECORDING_STORAGE_BACKEND = copy.deepcopy(DEFAULT_STORAGE_BACKEND)
@@ -280,29 +282,11 @@ else:
         },
     }
 
-
-
-    # Deep copy the DEFAULT_STORAGE_BACKEND
     RECORDING_STORAGE_BACKEND = copy.deepcopy(DEFAULT_STORAGE_BACKEND)
     RECORDING_STORAGE_BACKEND["OPTIONS"]["bucket_name"] = AWS_RECORDING_STORAGE_BUCKET_NAME
 
     AUDIO_CHUNK_STORAGE_BACKEND = copy.deepcopy(DEFAULT_STORAGE_BACKEND)
     AUDIO_CHUNK_STORAGE_BACKEND["OPTIONS"]["bucket_name"] = AWS_AUDIO_CHUNK_STORAGE_BUCKET_NAME
-
-
-DEFAULT_STORAGE_BACKEND = {
-    "BACKEND": "storages.backends.s3.S3Storage",
-    "OPTIONS": {
-        "endpoint_url": os.getenv("AWS_ENDPOINT_URL") or os.getenv("AWS_S3_ENDPOINT_URL"),
-        "access_key": os.getenv("AWS_ACCESS_KEY_ID"),
-        "secret_key": os.getenv("AWS_SECRET_ACCESS_KEY"),
-    },
-}
-
-AWS_S3_SIGNATURE_VERSION = "s3v4"
-AWS_S3_ADDRESSING_STYLE = os.getenv("AWS_S3_ADDRESSING_STYLE", "path")
-AWS_S3_REGION_NAME = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
-
 
 STORAGES = {
     "default": DEFAULT_STORAGE_BACKEND,
@@ -314,12 +298,6 @@ STORAGES = {
     },
 }
 
-    AWS_S3_ADDRESSING_STYLE = os.getenv("AWS_S3_ADDRESSING_STYLE", "path")
-    AWS_S3_REGION_NAME = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
-
-
-
-AWS_S3_SIGNATURE_VERSION = "s3v4"
 if os.getenv("USE_IRSA_FOR_S3_STORAGE", "false") == "true":
     AWS_S3_ADDRESSING_STYLE = "virtual"
 
@@ -334,7 +312,11 @@ SITE_DOMAIN = os.getenv("SITE_DOMAIN", "app.attendee.dev")
 MASK_TRANSCRIPT_IN_LOGS = os.getenv("MASK_TRANSCRIPT_IN_LOGS", "false") == "true"
 ENFORCE_DOMAIN_ALLOWLIST_IN_CHROME = os.getenv("ENFORCE_DOMAIN_ALLOWLIST_IN_CHROME", "false") == "true"
 CUSTOM_BOT_POD_SPEC_TYPES = os.getenv("CUSTOM_BOT_POD_SPEC_TYPES", "").split(",") if os.getenv("CUSTOM_BOT_POD_SPEC_TYPES") else []
-GLOBAL_WEBHOOK_DELIVERIES_PER_SECOND_RATE_LIMIT = int(os.getenv("GLOBAL_WEBHOOK_DELIVERIES_PER_SECOND_RATE_LIMIT")) if os.getenv("GLOBAL_WEBHOOK_DELIVERIES_PER_SECOND_RATE_LIMIT") else None
+GLOBAL_WEBHOOK_DELIVERIES_PER_SECOND_RATE_LIMIT = (
+    int(os.getenv("GLOBAL_WEBHOOK_DELIVERIES_PER_SECOND_RATE_LIMIT"))
+    if os.getenv("GLOBAL_WEBHOOK_DELIVERIES_PER_SECOND_RATE_LIMIT")
+    else None
+)
 
 # Initialize Sentry (only if SENTRY_DSN is set)
 init_sentry()
