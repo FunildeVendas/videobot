@@ -273,14 +273,17 @@ if STORAGE_PROTOCOL == "azure":
     AUDIO_CHUNK_STORAGE_BACKEND = copy.deepcopy(DEFAULT_STORAGE_BACKEND)
     AUDIO_CHUNK_STORAGE_BACKEND["OPTIONS"]["azure_container"] = AZURE_AUDIO_CHUNK_STORAGE_CONTAINER_NAME
 else:
-    DEFAULT_STORAGE_BACKEND = {
-        "BACKEND": "storages.backends.s3.S3Storage",
-        "OPTIONS": {
-            "endpoint_url": os.getenv("AWS_ENDPOINT_URL") or os.getenv("AWS_S3_ENDPOINT_URL"),
-            "access_key": os.getenv("AWS_ACCESS_KEY_ID"),
-            "secret_key": os.getenv("AWS_SECRET_ACCESS_KEY"),
-        },
-    }
+DEFAULT_STORAGE_BACKEND = {
+    "BACKEND": "storages.backends.s3.S3Storage",
+    "OPTIONS": {
+        "endpoint_url": os.getenv("AWS_ENDPOINT_URL") or os.getenv("AWS_S3_ENDPOINT_URL"),
+        "access_key": os.getenv("AWS_ACCESS_KEY_ID"),
+        "secret_key": os.getenv("AWS_SECRET_ACCESS_KEY"),
+        "region_name": os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
+        "signature_version": "s3v4",
+        "addressing_style": os.getenv("AWS_S3_ADDRESSING_STYLE", "path"),
+    },
+}
 
     RECORDING_STORAGE_BACKEND = copy.deepcopy(DEFAULT_STORAGE_BACKEND)
     RECORDING_STORAGE_BACKEND["OPTIONS"]["bucket_name"] = AWS_RECORDING_STORAGE_BUCKET_NAME
