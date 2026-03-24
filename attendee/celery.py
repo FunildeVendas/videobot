@@ -5,7 +5,7 @@ import ssl
 from celery import Celery
 
 # Set the default Django settings module
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "attendee.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "attendee.settings.production")
 
 sslCertRequirements = None
 if os.getenv("DISABLE_REDIS_SSL"):
@@ -28,15 +28,20 @@ if sslCertRequirements is not None:
 else:
     app = Celery("attendee")
 
-# Currently the only use case for CELERY_BROKER_TRANSPORT_OPTIONS is to enable support for Redis Cluster hash
-# tags. This is mainly to prevent CROSSSLOT errors when using Redis Cluster (https://github.com/celery/celery/issues/8276#issuecomment-3714489309)
-# For this case set CELERY_BROKER_TRANSPORT_OPTIONS='{"global_keyprefix":"{celeryattendee}:","fanout_prefix":true,"fanout_patterns":true}'
-
+# Optional Redis transport options
 if os.getenv("CELERY_BROKER_TRANSPORT_OPTIONS"):
-    app.conf.update(broker_transport_options=json.loads(os.getenv("CELERY_BROKER_TRANSPORT_OPTIONS")))
+    app.conf.update(
+        broker_transport_options=json.loads(os.getenv("CELERY_BROKER_TRANSPORT_OPTIONS"))
+    )
 
 # Load configuration from Django settings
 app.config_from_object("django.conf:settings", namespace="CELERY")
 
-# Auto-discover tasks from all registered Django apps
+# Auto-discover default tasks.py modules
 app.autodiscover_tasks()
+
+# Explicitly import task modules that are not in the default app.tasks format
+app.conf.imports = (
+    "bots.tasks.run_bot_task",
+    "bots.tasks.deliver_webhook_task",
+)
