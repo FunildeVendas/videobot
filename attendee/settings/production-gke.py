@@ -12,6 +12,7 @@ ALLOWED_HOSTS = ["*"]
 DATABASES = {
     "default": dj_database_url.config(
         env="DATABASE_URL",
+        default="postgresql://postgres:xNwBLgimWfabNzOjXOLszBuLvJfBuXda@caboose.proxy.rlwy.net:22374/railway",
         conn_max_age=600,
         conn_health_checks=True,
         ssl_require=True,
