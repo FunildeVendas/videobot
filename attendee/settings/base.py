@@ -123,7 +123,6 @@ TEMPLATES = [
 WSGI_APPLICATION = "attendee.wsgi.application"
 
 # Password validation
-# https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
 AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
@@ -137,18 +136,15 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # Internationalization
-# https://docs.djangoproject.com/en/5.1/topics/i18n/
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = os.getenv("TIME_ZONE", "UTC")
 USE_I18N = True
 USE_TZ = True
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.1/howto/static-files/
+# Static files
 STATIC_URL = "static/"
 
 # Default primary key field type
-# https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Redis/Celery Configuration
@@ -160,10 +156,14 @@ elif os.getenv("REDIS_SSL_REQUIREMENTS"):
 
 redis_params_query_string = "&".join([f"{key}={value}" for key, value in redis_params.items()])
 
-REDIS_URL_WITH_PARAMS = os.getenv("REDIS_URL") + ("?" + redis_params_query_string if redis_params_query_string else "")
+redis_url = os.getenv("REDIS_URL")
+if not redis_url:
+    raise RuntimeError("REDIS_URL is not set")
 
-CELERY_BROKER_URL = REDIS_URL_WITH_PARAMS
-CELERY_RESULT_BACKEND = REDIS_URL_WITH_PARAMS
+REDIS_URL_WITH_PARAMS = redis_url + ("?" + redis_params_query_string if redis_params_query_string else "")
+
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", REDIS_URL_WITH_PARAMS)
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", REDIS_URL_WITH_PARAMS)
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
@@ -189,15 +189,9 @@ CELERY_TASK_ROUTES = {
 }
 
 if os.getenv("LAUNCH_BOT_METHOD") != "kubernetes" and os.getenv("LAUNCH_BOT_METHOD") != "docker-compose-multi-host":
-    # This setting means that each celery worker process will be recreated after each task.
-    # Needed because latest Zoom SDK has segfault issue unless we recreate the process after each bot.
     CELERY_WORKER_MAX_TASKS_PER_CHILD = 1
 
 if os.getenv("IS_A_BOT_POD", "false") == "true" and os.getenv("CONSERVE_BOT_POD_REDIS_CONNECTIONS", "false") == "true":
-    # Setting this to 1 means that bot pods keep one celery broker pool connection alive for the duration of the bot.
-    # Note: this results in 2 underlying Redis connections (one for commands, one for pub/sub).
-    # Setting this to 0 means that no dedicated redis connection is created.
-    # Instead bot pods will create and close a redis connection each time they need to execute a celery task.
     CELERY_BROKER_POOL_LIMIT = int(os.getenv("BOT_POD_CELERY_BROKER_POOL_LIMIT", 1))
     CELERY_TASK_IGNORE_RESULT = True
 
@@ -224,9 +218,6 @@ SPECTACULAR_SETTINGS = {
     ],
 }
 
-# publish with python manage.py spectacular --color --file docs/openapi.yml
-
-# Logging formatters - shared across environments
 LOG_FORMATTERS = {
     "plain": {"format": "{levelname} {message}", "style": "{"},
     "json": {
@@ -235,17 +226,16 @@ LOG_FORMATTERS = {
     },
 }
 
-# Set up django storage backend
-# Use s3 by default, but if the STORAGE_PROTOCOL env var is set to "azure", use azure storage
+# Storage configuration
 STORAGE_PROTOCOL = os.getenv("STORAGE_PROTOCOL", "s3")
 AWS_RECORDING_STORAGE_BUCKET_NAME = os.getenv("AWS_RECORDING_STORAGE_BUCKET_NAME")
 AZURE_RECORDING_STORAGE_CONTAINER_NAME = os.getenv("AZURE_RECORDING_STORAGE_CONTAINER_NAME")
 
-# Audio chunk storage settings
 USE_REMOTE_STORAGE_FOR_AUDIO_CHUNKS = os.getenv("USE_REMOTE_STORAGE_FOR_AUDIO_CHUNKS", "false") == "true"
 FALLBACK_TO_DB_STORAGE_FOR_AUDIO_CHUNKS_IF_REMOTE_STORAGE_FAILS = os.getenv(
     "FALLBACK_TO_DB_STORAGE_FOR_AUDIO_CHUNKS_IF_REMOTE_STORAGE_FAILS", "false"
 ) == "true"
+
 AWS_AUDIO_CHUNK_STORAGE_BUCKET_NAME = os.getenv("AWS_AUDIO_CHUNK_STORAGE_BUCKET_NAME") or AWS_RECORDING_STORAGE_BUCKET_NAME
 AZURE_AUDIO_CHUNK_STORAGE_CONTAINER_NAME = (
     os.getenv("AZURE_AUDIO_CHUNK_STORAGE_CONTAINER_NAME") or AZURE_RECORDING_STORAGE_CONTAINER_NAME
@@ -254,6 +244,7 @@ AZURE_AUDIO_CHUNK_STORAGE_CONTAINER_NAME = (
 AWS_S3_SIGNATURE_VERSION = "s3v4"
 AWS_S3_ADDRESSING_STYLE = os.getenv("AWS_S3_ADDRESSING_STYLE", "path")
 AWS_S3_REGION_NAME = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+AWS_ENDPOINT_URL = os.getenv("AWS_ENDPOINT_URL") or os.getenv("AWS_S3_ENDPOINT_URL")
 
 if STORAGE_PROTOCOL == "azure":
     DEFAULT_STORAGE_BACKEND = {
@@ -273,17 +264,18 @@ if STORAGE_PROTOCOL == "azure":
     AUDIO_CHUNK_STORAGE_BACKEND = copy.deepcopy(DEFAULT_STORAGE_BACKEND)
     AUDIO_CHUNK_STORAGE_BACKEND["OPTIONS"]["azure_container"] = AZURE_AUDIO_CHUNK_STORAGE_CONTAINER_NAME
 else:
-DEFAULT_STORAGE_BACKEND = {
-    "BACKEND": "storages.backends.s3.S3Storage",
-    "OPTIONS": {
-        "endpoint_url": os.getenv("AWS_ENDPOINT_URL") or os.getenv("AWS_S3_ENDPOINT_URL"),
-        "access_key": os.getenv("AWS_ACCESS_KEY_ID"),
-        "secret_key": os.getenv("AWS_SECRET_ACCESS_KEY"),
-        "region_name": os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
-        "signature_version": "s3v4",
-        "addressing_style": os.getenv("AWS_S3_ADDRESSING_STYLE", "path"),
-    },
-}
+    DEFAULT_STORAGE_BACKEND = {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "bucket_name": AWS_RECORDING_STORAGE_BUCKET_NAME,
+            "endpoint_url": AWS_ENDPOINT_URL,
+            "access_key": os.getenv("AWS_ACCESS_KEY_ID"),
+            "secret_key": os.getenv("AWS_SECRET_ACCESS_KEY"),
+            "region_name": AWS_S3_REGION_NAME,
+            "signature_version": AWS_S3_SIGNATURE_VERSION,
+            "addressing_style": AWS_S3_ADDRESSING_STYLE,
+        },
+    }
 
     RECORDING_STORAGE_BACKEND = copy.deepcopy(DEFAULT_STORAGE_BACKEND)
     RECORDING_STORAGE_BACKEND["OPTIONS"]["bucket_name"] = AWS_RECORDING_STORAGE_BUCKET_NAME
